@@ -1,30 +1,44 @@
-import { v4 } from 'uuid';
-import { IPFS, create } from 'ipfs';
-const Room = require('ipfs-pubsub-room');
+import { loadQSettings, storeQSettings } from './storage';
+import { QSettings } from './types';
+import { start, storeIPFS } from './ipfs';
+var colors = require('colors/safe');
 
-const IPFS = require('ipfs');
-
-const options = {
-  repo: repo(),
-  EXPERIMENTAL: {
-    // enable experimental features
-  },
-};
+import { createPlugin } from './qblock';
 
 async function main() {
-  const node = await create(options);
-  const version = await node.version();
+  // Start IPFS
+  const ipfs = await start();
 
-  console.log(`Version: ${version.version}`);
+  // load the Qsettings
+  await loadQSettings()
+    .then(async (qSettings) => {
+      console.log(colors.yellow(`Plugins n: ${qSettings?.plugins?.length}`));
 
-  const room = new Room(node, 'ipfs-pubsub-room');
+      if (qSettings) {
+        // Create and add a new Plugin
+        await createPlugin(ipfs, 'symbol', qSettings);
+      }
 
-  room.on('peer joined', (peer: any) => console.log(`peer ${peer} joined`));
-  room.on('peer left', (peer: any) => console.log(`peer ${peer} left`));
+      if (qSettings) {
+        console.log('Settings: ' + JSON.stringify(qSettings));
+      }
+    })
+    .catch(async (err) => {
+      console.log(err);
+      await createQSettings();
+    });
 }
 
-function repo() {
-  return 'ipfs/pubsub-demo/' + v4();
+async function createQSettings() {
+  console.log('... generate QSettings');
+
+  let qSettings: QSettings = {
+    cid: '',
+    date: new Date().toISOString(),
+    plugins: [],
+  };
+
+  await storeQSettings(qSettings);
 }
 
 main();
